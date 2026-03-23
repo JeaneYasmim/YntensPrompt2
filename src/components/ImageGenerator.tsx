@@ -20,14 +20,26 @@ interface GeneratedImage {
   userId: string;
   prompt: string;
   imageUrl: string;
+  aspectRatio?: string;
+  model?: string;
   catalogId?: string;
   createdAt: any;
 }
+
+const ASPECT_RATIOS = [
+  { id: '16:9', label: '16:9', icon: '▭' },
+  { id: '4:3', label: '4:3', icon: '▢' },
+  { id: '1:1', label: '1:1', icon: '◻' },
+  { id: '3:4', label: '3:4', icon: '▯' },
+  { id: '9:16', label: '9:16', icon: '▯' },
+];
 
 const IMAGE_COUNTS = [1, 2, 3, 4];
 
 export function ImageGenerator({ initialPrompt }: ImageGeneratorProps) {
   const [prompt, setPrompt] = useState(initialPrompt);
+  const [modelType, setModelType] = useState<'nano' | 'flow'>('nano');
+  const [aspectRatio, setAspectRatio] = useState('3:4');
   const [imageCount, setImageCount] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
@@ -128,7 +140,7 @@ export function ImageGenerator({ initialPrompt }: ImageGeneratorProps) {
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files) {
-      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+      const files = Array.from(e.dataTransfer.files as FileList).filter((f: File) => f.type.startsWith('image/'));
       addBaseImages(files);
     }
   };
@@ -175,22 +187,23 @@ export function ImageGenerator({ initialPrompt }: ImageGeneratorProps) {
       return;
     }
 
-    // Check for API Key
-    const hasKey = await (window as any).aistudio?.hasSelectedApiKey?.();
-    if (hasKey === false) {
-      await (window as any).aistudio?.openSelectKey?.();
-      // Assume success after dialog
-    }
-
     setIsGenerating(true);
     setError('');
 
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
     try {
-      // Use the default environment API key for the free model
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = process.env.GEMINI_API_KEY;
+        
+      const ai = new GoogleGenAI(apiKey ? { apiKey } : {});
 
       // Generate images sequentially to avoid rate limits (429 errors)
       for (let i = 0; i < imageCount; i++) {
+        if (i > 0) {
+          // Add a delay between requests to help mitigate 429s, especially on free tier
+          await delay(2000);
+        }
+
         const parts: any[] = [];
         
         baseImages.forEach(img => {
@@ -206,10 +219,12 @@ export function ImageGenerator({ initialPrompt }: ImageGeneratorProps) {
         parts.push({ text: prompt });
 
         try {
-          const response = await ai.models.generateContent({
+          const requestOptions: any = {
             model: 'gemini-2.5-flash-image',
             contents: { parts }
-          });
+          };
+
+          const response = await ai.models.generateContent(requestOptions);
 
           let base64Data = '';
           for (const part of response.candidates?.[0]?.content?.parts || []) {
@@ -230,6 +245,7 @@ export function ImageGenerator({ initialPrompt }: ImageGeneratorProps) {
             userId: auth.currentUser!.uid,
             prompt,
             imageUrl,
+            model: 'nano',
             createdAt: serverTimestamp()
           };
           
@@ -240,10 +256,7 @@ export function ImageGenerator({ initialPrompt }: ImageGeneratorProps) {
           await addDoc(collection(db, 'generated_images'), imageData);
         } catch (err: any) {
           const errorMessage = err.message || '';
-          if (errorMessage.includes('403') || errorMessage.includes('PERMISSION_DENIED') || errorMessage.includes('Requested entity was not found')) {
-            await (window as any).aistudio?.openSelectKey?.();
-            throw new Error('Permissão negada ou chave de API inválida. Por favor, selecione uma chave de API válida de um projeto com faturamento ativado e tente novamente.');
-          } else if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('quota')) {
+          if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('quota')) {
             throw new Error(`Limite de requisições excedido (Erro 429). ${i > 0 ? `${i} imagem(ns) gerada(s) com sucesso.` : ''} Por favor, aguarde um momento antes de gerar mais imagens.`);
           }
           throw err;
@@ -274,7 +287,69 @@ export function ImageGenerator({ initialPrompt }: ImageGeneratorProps) {
         {/* Controls */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-6">
           
-          {/* Prompt Input */}
+          {/* Model Selection */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-zinc-300">Modelo de Geração</label>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={() => setModelType('nano')}
+                className={`flex-1 py-3 px-4 rounded-xl border flex items-center justify-center gap-3 transition-all ${
+                  modelType === 'nano'
+                    ? 'bg-zinc-800 border-zinc-600 text-zinc-100'
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300'
+                }`}
+              >
+                <span className="text-2xl">🍌</span>
+                <div className="text-left">
+                  <div className="font-medium text-sm">Nano Banana</div>
+                  <div className="text-[10px] opacity-70">Gratuito • 1:1</div>
+                </div>
+              </button>
+              <button
+                onClick={() => setModelType('flow')}
+                className={`flex-1 py-3 px-4 rounded-xl border flex items-center justify-center gap-3 transition-all ${
+                  modelType === 'flow'
+                    ? 'bg-emerald-900/30 border-emerald-500/50 text-emerald-100'
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300'
+                }`}
+              >
+                <span className="text-2xl">✨</span>
+                <div className="text-left">
+                  <div className="font-medium text-sm">Google Flow</div>
+                  <div className="text-[10px] opacity-70">Site Oficial (Iframe)</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {modelType === 'flow' ? (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-emerald-900/20 border border-emerald-500/30 p-4 rounded-xl gap-4">
+                <div className="text-sm text-emerald-200">
+                  <p className="font-medium">Dica de Autenticação</p>
+                  <p className="opacity-80">O Flow tenta usar a conta logada no seu navegador. Se a tela de login não carregar (por bloqueio de segurança do Google em iframes), abra o Flow em uma nova aba.</p>
+                </div>
+                <a 
+                  href="https://labs.google/fx/pt/tools/flow" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap shrink-0"
+                >
+                  Abrir em Nova Aba
+                </a>
+              </div>
+              <div className="w-full h-[800px] rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950">
+                <iframe 
+                  src="https://labs.google/fx/pt/tools/flow" 
+                  className="w-full h-full border-0" 
+                  title="Google Flow"
+                  allow="clipboard-write; storage-access"
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Prompt Input */}
           <div 
             className="space-y-4"
             onPaste={handlePaste}
@@ -386,7 +461,9 @@ export function ImageGenerator({ initialPrompt }: ImageGeneratorProps) {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-zinc-800">
             <div className="flex items-center gap-2 px-4 py-2 bg-zinc-950 rounded-lg border border-zinc-800 text-sm text-zinc-300">
               <span>🍌</span>
-              <span className="font-medium">Nano Banana (Gratuito)</span>
+              <span className="font-medium">
+                Nano Banana (Gratuito)
+              </span>
             </div>
             
             <button
@@ -409,6 +486,8 @@ export function ImageGenerator({ initialPrompt }: ImageGeneratorProps) {
             <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
               {error}
             </div>
+          )}
+            </>
           )}
         </div>
 
@@ -470,7 +549,7 @@ export function ImageGenerator({ initialPrompt }: ImageGeneratorProps) {
                       </p>
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-medium px-2 py-1 bg-zinc-950 rounded-md text-zinc-500 border border-zinc-800">
-                          1:1
+                          {img.aspectRatio || '1:1'} {img.model === 'premium' ? '✨' : '🍌'}
                         </span>
                         <span className="text-xs text-zinc-600">
                           {img.createdAt?.toDate ? img.createdAt.toDate().toLocaleDateString() : 'Agora'}

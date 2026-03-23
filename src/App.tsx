@@ -150,7 +150,7 @@ export default function App() {
       console.error('Error generating prompt:', error);
       
       const errorMessage = error?.message || '';
-      if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+      if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('limite de uso gratuito')) {
         setGeneratedPrompt('⚠️ Limite de uso excedido (Erro 429).\n\nA API do Gemini atingiu o limite de requisições ou a cota do plano atual acabou. Por favor, aguarde um momento e tente novamente mais tarde.');
       } else {
         setGeneratedPrompt('Ocorreu um erro ao gerar o prompt. Verifique o console para mais detalhes.');

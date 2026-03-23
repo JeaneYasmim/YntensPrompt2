@@ -212,7 +212,7 @@ export async function generatePrompt(
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
+      model: "gemini-3-flash-preview",
       contents: { parts },
       config: {
         systemInstruction: systemInstruction,
@@ -223,16 +223,37 @@ export async function generatePrompt(
   } catch (error: any) {
     const errorMessage = error?.message || '';
     if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
-      console.warn("Quota exceeded for gemini-3.1-pro-preview, falling back to gemini-3-flash-preview...");
-      const fallbackResponse = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: { parts },
-        config: {
-          systemInstruction: systemInstruction,
-          temperature: 0.7,
-        },
-      });
-      return fallbackResponse.text || "Erro ao gerar o prompt.";
+      console.warn("Quota exceeded for gemini-3-flash-preview, falling back to gemini-3.1-flash-lite-preview...");
+      try {
+        const fallbackResponse = await ai.models.generateContent({
+          model: "gemini-3.1-flash-lite-preview",
+          contents: { parts },
+          config: {
+            systemInstruction: systemInstruction,
+            temperature: 0.7,
+          },
+        });
+        return fallbackResponse.text || "Erro ao gerar o prompt.";
+      } catch (fallbackError: any) {
+        const fallbackErrorMessage = fallbackError?.message || '';
+        if (fallbackErrorMessage.includes('429') || fallbackErrorMessage.includes('quota') || fallbackErrorMessage.includes('RESOURCE_EXHAUSTED')) {
+           console.warn("Quota exceeded for gemini-3.1-flash-lite-preview, falling back to gemini-2.5-flash...");
+           try {
+             const finalFallbackResponse = await ai.models.generateContent({
+               model: "gemini-2.5-flash",
+               contents: { parts },
+               config: {
+                 systemInstruction: systemInstruction,
+                 temperature: 0.7,
+               },
+             });
+             return finalFallbackResponse.text || "Erro ao gerar o prompt.";
+           } catch (finalError) {
+             throw new Error("O limite de uso gratuito foi atingido no momento. Por favor, aguarde alguns minutos e tente novamente.");
+           }
+        }
+        throw new Error("O limite de uso gratuito foi atingido no momento. Por favor, aguarde alguns minutos e tente novamente.");
+      }
     }
     throw error;
   }
