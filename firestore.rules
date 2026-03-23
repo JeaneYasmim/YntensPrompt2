@@ -1,0 +1,153 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (request.auth.token.email == "jeane.yasmim.bo@gmail.com" && request.auth.token.email_verified == true) ||
+        (request.auth.token.email == "yntensa@admin.com")
+      );
+    }
+
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role', 'disabled', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             data.role in ['admin', 'user'] &&
+             (!('disabled' in data) || data.disabled is bool) &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidOption(opt) {
+      return opt is map &&
+             opt.keys().hasOnly(['id', 'label', 'description']) &&
+             opt.id is string && opt.id.size() > 0 && opt.id.size() < 100 &&
+             opt.label is string && opt.label.size() > 0 && opt.label.size() < 100 &&
+             opt.description is string && opt.description.size() < 500;
+    }
+
+    function isValidSubCategory(sub) {
+      return sub is map &&
+             sub.keys().hasOnly(['label', 'options']) &&
+             sub.label is string && sub.label.size() > 0 && sub.label.size() < 100 &&
+             sub.options is list && sub.options.size() <= 100;
+             // Note: Deep array validation is complex in rules, we rely on admin role for safety here
+    }
+
+    function isValidCategory(data) {
+      return hasOnlyAllowedFields(['id', 'label', 'subcategories', 'order']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.label is string && data.label.size() > 0 && data.label.size() < 100 &&
+             data.subcategories is list && data.subcategories.size() <= 50 &&
+             data.order is number;
+    }
+
+    function isValidGeneratedImage(data) {
+      return hasOnlyAllowedFields(['userId', 'prompt', 'imageUrl', 'aspectRatio', 'createdAt', 'catalogId']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.prompt is string && data.prompt.size() > 0 && data.prompt.size() < 5000 &&
+             data.imageUrl is string && data.imageUrl.size() > 0 &&
+             data.aspectRatio is string && data.aspectRatio.size() > 0 && data.aspectRatio.size() < 20 &&
+             (!('catalogId' in data) || (data.catalogId is string && data.catalogId.size() < 100)) &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidCatalog(data) {
+      return hasOnlyAllowedFields(['userId', 'name', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      
+      allow create: if isAuthenticated() && 
+                    isValidUser(request.resource.data) && 
+                    uidUnchanged() && 
+                    isOwner(userId) &&
+                    (
+                      (request.resource.data.role == 'user' && !('disabled' in request.resource.data)) || 
+                      isAdmin()
+                    );
+                    
+      allow update: if isAuthenticated() && 
+                    isValidUser(request.resource.data) && 
+                    uidNotModified() &&
+                    areImmutableFieldsUnchanged(['uid', 'email', 'createdAt']) &&
+                    (
+                      isAdmin() || 
+                      (isOwner(userId) && areImmutableFieldsUnchanged(['role', 'disabled']))
+                    );
+                    
+      allow delete: if isAdmin();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if isAuthenticated();
+      
+      allow create: if isAdmin() && isValidCategory(request.resource.data);
+      allow update: if isAdmin() && isValidCategory(request.resource.data) && areImmutableFieldsUnchanged(['id']);
+      allow delete: if isAdmin();
+    }
+
+    match /generated_images/{imageId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && 
+                    isValidGeneratedImage(request.resource.data) && 
+                    request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    match /catalogs/{catalogId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && 
+                    isValidCatalog(request.resource.data) && 
+                    request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+  }
+}

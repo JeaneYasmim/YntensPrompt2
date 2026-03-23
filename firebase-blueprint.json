@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "disabled": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Option": {
+      "title": "Option",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "label", "description"]
+    },
+    "SubCategory": {
+      "title": "SubCategory",
+      "type": "object",
+      "properties": {
+        "label": { "type": "string" },
+        "options": {
+          "type": "array",
+          "items": { "$ref": "#/entities/Option" }
+        }
+      },
+      "required": ["label", "options"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "A category of prompt options.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "subcategories": {
+          "type": "array",
+          "items": { "$ref": "#/entities/SubCategory" }
+        },
+        "order": { "type": "number" }
+      },
+      "required": ["id", "label", "subcategories", "order"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles and roles."
+    },
+    "categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Stores the prompt categories and their items."
+    }
+  }
+}
