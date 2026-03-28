@@ -24,9 +24,9 @@ export function OptionsPanel({
   if (!category) return null;
 
   return (
-    <div className="flex-1 bg-zinc-950 p-8 overflow-y-auto">
+    <div className="flex-1 bg-zinc-950 p-4 md:p-8 lg:overflow-y-auto">
       <div className="max-w-4xl mx-auto">
-        <h2 className="text-3xl font-semibold text-zinc-100 tracking-tight mb-2">
+        <h2 className="text-2xl md:text-3xl font-semibold text-zinc-100 tracking-tight mb-2">
           {category.label}
         </h2>
         <p className="text-zinc-400 text-sm mb-8">
@@ -48,14 +48,14 @@ export function OptionsPanel({
                       onClick={() => onToggleOption(category.id, option.label)}
                       className={`relative group text-left p-4 rounded-xl border transition-all duration-200 flex flex-col justify-between min-h-[100px] ${
                         isSelected
-                          ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+                          ? 'bg-red-700/10 border-red-700/50 text-red-500 shadow-[0_0_15px_rgba(185,28,28,0.1)]'
                           : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-800'
                       }`}
                     >
                       <div className="flex items-start justify-between w-full mb-2">
                         <span className="text-sm font-medium pr-4 leading-tight">{option.label}</span>
                         {isSelected && (
-                          <span className="w-2 h-2 mt-1 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] flex-shrink-0"></span>
+                          <span className="w-2 h-2 mt-1 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] flex-shrink-0"></span>
                         )}
                       </div>
                       
@@ -85,7 +85,7 @@ export function OptionsPanel({
               value={clothingDescription}
               onChange={(e) => onClothingDescriptionChange(e.target.value)}
               placeholder="Descreva detalhes específicos. Ex: Jaqueta de couro preta com tachas, camiseta branca básica..."
-              className="w-full h-32 bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-zinc-200 text-sm focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 resize-none"
+              className="w-full h-32 bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-zinc-200 text-sm focus:outline-none focus:border-red-700/50 focus:ring-1 focus:ring-red-700/50 resize-none"
             />
           </div>
         )}

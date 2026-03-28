@@ -1,0 +1,6 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100" height="100" rx="20" fill="#B91C1C"/>
+  <path d="M30 75L45 30H55L70 75H60L56 62H44L40 75H30ZM46 54H54L50 40L46 54Z" fill="white"/>
+  <path d="M25 30H35V50C35 55 38 58 42 58C46 58 49 55 49 50V30H59V50C59 62 52 70 42 70C32 70 25 62 25 50V30Z" fill="white" style="mix-blend-mode: overlay; opacity: 0.5;"/>
+  <text x="50" y="65" font-family="Arial, sans-serif" font-size="40" font-weight="bold" fill="white" text-anchor="middle">YA</text>
+</svg>

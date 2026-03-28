@@ -5,24 +5,45 @@ import { PromptArea } from './components/PromptArea';
 import { ImageGenerator } from './components/ImageGenerator';
 import Auth from './components/Auth';
 import AdminPanel from './components/AdminPanel';
+import LinksPanel from './components/LinksPanel';
 import { SelectedOptions, Category } from './types';
 import { CATEGORIES as DEFAULT_CATEGORIES, CONFLICTS } from './constants';
 import { generatePrompt } from './services/geminiService';
-import { AlertTriangle, ExternalLink, LogOut, Shield } from 'lucide-react';
+import { AlertTriangle, ExternalLink, LogOut, Shield, Key, Clock } from 'lucide-react';
+import logo from './assets/logo.svg';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, getDoc, setDoc, getDocs } from 'firebase/firestore';
+
+declare global {
+  interface Window {
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'generator' | 'execution' | 'admin'>('generator');
+  const [activeTab, setActiveTab] = useState<'generator' | 'execution' | 'admin' | 'links'>('generator');
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedOptions, setSelectedOptions] = useState<SelectedOptions>({});
   const [clothingDescription, setClothingDescription] = useState<string>('');
   const [copyTypography, setCopyTypography] = useState<boolean>(false);
   const [typographyText, setTypographyText] = useState<string>('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [generatedPrompt, setGeneratedPrompt] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldown]);
+  const [isAutoGenerating, setIsAutoGenerating] = useState<boolean>(false);
 
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -47,28 +68,36 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     
-    const unsub = onSnapshot(collection(db, 'categories'), async (snap) => {
+    // Use a one-time fetch for bootstrap if needed, then use onSnapshot for updates
+    const checkAndBootstrap = async () => {
+      const snap = await getDocs(collection(db, 'categories'));
+      if (snap.empty && isAdmin) {
+        console.log('Bootstrapping categories...');
+        for (const cat of DEFAULT_CATEGORIES) {
+          await setDoc(doc(db, 'categories', cat.id), { ...cat, order: DEFAULT_CATEGORIES.indexOf(cat) });
+        }
+      }
+    };
+
+    checkAndBootstrap();
+
+    const unsub = onSnapshot(collection(db, 'categories'), (snap) => {
       if (snap.empty) {
-        // Bootstrap default categories if empty (only admin should ideally do this, but we do it once)
-        if (isAdmin) {
-          for (const cat of DEFAULT_CATEGORIES) {
-            await setDoc(doc(db, 'categories', cat.id), { ...cat, order: DEFAULT_CATEGORIES.indexOf(cat) });
-          }
-        } else {
+        if (!isAdmin) {
           setCategories(DEFAULT_CATEGORIES);
-          setSelectedCategory(DEFAULT_CATEGORIES[0].id);
+          setSelectedCategory(prev => prev || DEFAULT_CATEGORIES[0].id);
         }
       } else {
         const catsData = snap.docs.map(d => d.data() as Category).sort((a, b) => (a.order || 0) - (b.order || 0));
         setCategories(catsData);
-        if (catsData.length > 0 && !selectedCategory) {
-          setSelectedCategory(catsData[0].id);
+        if (catsData.length > 0) {
+          setSelectedCategory(prev => prev || catsData[0].id);
         }
       }
     });
 
     return () => unsub();
-  }, [user, isAdmin, selectedCategory]);
+  }, [user, isAdmin]);
 
   const activeConflicts = useMemo(() => {
     const allSelected = Object.values(selectedOptions).flat();
@@ -81,12 +110,76 @@ export default function App() {
     return Object.values(selectedOptions).flat();
   }, [selectedOptions]);
 
+  const handleGenerate = async (fileToUse?: File) => {
+    const finalFile = fileToUse !== undefined ? fileToUse : imageFile;
+    setIsGenerating(true);
+    try {
+      let base64Image: string | undefined;
+      let mimeType: string | undefined;
+
+      if (finalFile) {
+        base64Image = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(finalFile);
+        });
+        mimeType = finalFile.type;
+      }
+
+      const prompt = await generatePrompt(
+        selectedOptions,
+        clothingDescription,
+        base64Image,
+        mimeType,
+        copyTypography,
+        typographyText
+      );
+      
+      setGeneratedPrompt(prompt);
+    } catch (error: any) {
+      console.error('Error generating prompt:', error);
+      
+      const errorMessage = error?.message || '';
+      const isQuotaError = errorMessage.includes('429') || 
+                           errorMessage.includes('quota') || 
+                           errorMessage.includes('RESOURCE_EXHAUSTED') || 
+                           errorMessage.includes('limite de uso gratuito');
+      
+      if (isQuotaError) {
+        setCooldown(60);
+        setGeneratedPrompt(
+          '⚠️ Limite de Velocidade Atingido (Erro 429).\n\n' +
+          'O Google limita a frequência de uso na versão gratuita para todos os usuários deste sistema simultaneamente. \n\n' +
+          '💡 DICA: Você pode usar sua própria chave gratuita do Google para ter velocidade total e sem bloqueios. Clique no ícone de "Chave" no topo do app para configurar.'
+        );
+      } else {
+        setGeneratedPrompt('Ocorreu um erro ao gerar o prompt. Verifique o console para mais detalhes.');
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Auto-generation logic with debounce
+  useEffect(() => {
+    // Don't auto-generate if we're already generating or if nothing is selected/uploaded
+    const hasOptions = Object.values(selectedOptions as Record<string, string[]>).some(opts => opts.length > 0);
+    if (!hasOptions && !clothingDescription && !imageFile) return;
+
+    const timer = setTimeout(() => {
+      handleGenerate();
+    }, 10000); // 10s debounce to avoid hitting 429 too fast and reduce infrastructure load
+
+    return () => clearTimeout(timer);
+  }, [selectedOptions, clothingDescription, imageFile, copyTypography, typographyText]);
+
   const handleLogout = () => {
     signOut(auth);
   };
 
   if (authLoading) {
-    return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-emerald-400">Carregando...</div>;
+    return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-red-500">Carregando...</div>;
   }
 
   if (!user) {
@@ -117,46 +210,15 @@ export default function App() {
     setClothingDescription('');
     setCopyTypography(false);
     setTypographyText('');
+    setImageFile(null);
     setGeneratedPrompt('');
   };
 
-  const handleGenerate = async (imageFile?: File) => {
-    setIsGenerating(true);
+  const handleOpenKeyDialog = async () => {
     try {
-      let base64Image: string | undefined;
-      let mimeType: string | undefined;
-
-      if (imageFile) {
-        base64Image = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(imageFile);
-        });
-        mimeType = imageFile.type;
-      }
-
-      const prompt = await generatePrompt(
-        selectedOptions,
-        clothingDescription,
-        base64Image,
-        mimeType,
-        copyTypography,
-        typographyText
-      );
-      
-      setGeneratedPrompt(prompt);
-    } catch (error: any) {
-      console.error('Error generating prompt:', error);
-      
-      const errorMessage = error?.message || '';
-      if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('limite de uso gratuito')) {
-        setGeneratedPrompt('⚠️ Limite de uso excedido (Erro 429).\n\nA API do Gemini atingiu o limite de requisições ou a cota do plano atual acabou. Por favor, aguarde um momento e tente novamente mais tarde.');
-      } else {
-        setGeneratedPrompt('Ocorreu um erro ao gerar o prompt. Verifique o console para mais detalhes.');
-      }
-    } finally {
-      setIsGenerating(false);
+      await window.aistudio.openSelectKey();
+    } catch (err) {
+      console.error('Error opening key dialog:', err);
     }
   };
 
@@ -167,49 +229,64 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans selection:bg-emerald-500/30">
-      {/* Main Navigation Tabs */}
-      <div className="h-14 bg-zinc-950 border-b border-zinc-800 flex items-center justify-between px-4 shrink-0 gap-2 z-10">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setActiveTab('generator')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'generator' 
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 border border-transparent'
-            }`}
-          >
-            Passo 1: Gerador de Prompt
-          </button>
-          <button
-            onClick={() => setActiveTab('execution')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'execution' 
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 border border-transparent'
-            }`}
-          >
-            Passo 2: Gerar Imagem
-          </button>
-          {isAdmin && (
+    <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-red-500/30">
+      {/* Main Navigation Tabs - Fixed at top */}
+      <div className="sticky top-0 h-16 lg:h-14 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800 flex items-center justify-between px-4 shrink-0 gap-2 z-30">
+        <div className="flex items-center gap-2 lg:gap-4 flex-1">
+          <div className="flex items-center gap-2 px-1 lg:px-2 shrink-0">
+            <img src={logo} alt="Logo" className="w-6 h-6 lg:w-8 lg:h-8 rounded border border-zinc-800" />
+            <span className="font-bold text-xs lg:text-sm hidden md:block">YntensPrompt <span className="text-red-700">2.0</span></span>
+          </div>
+          <div className="flex items-center gap-1 lg:gap-2 overflow-x-auto no-scrollbar py-1">
             <button
-              onClick={() => setActiveTab('admin')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                activeTab === 'admin' 
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 border border-transparent'
+              onClick={() => setActiveTab('generator')}
+              className={`px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg text-[10px] lg:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
+                activeTab === 'generator' 
+                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' 
+                  : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900'
               }`}
             >
-              <Shield className="w-4 h-4" />
-              Painel Admin
+              1. Prompt
             </button>
-          )}
+            <button
+              onClick={() => setActiveTab('execution')}
+              className={`px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg text-[10px] lg:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
+                activeTab === 'execution' 
+                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' 
+                  : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900'
+              }`}
+            >
+              2. Imagem
+            </button>
+            <button
+              onClick={() => setActiveTab('links')}
+              className={`px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg text-[10px] lg:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
+                activeTab === 'links' 
+                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' 
+                  : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900'
+              }`}
+            >
+              3. Links
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('admin')}
+                className={`px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg text-[10px] lg:text-sm font-bold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                  activeTab === 'admin' 
+                    ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' 
+                    : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900'
+                }`}
+              >
+                <Shield className="w-3 h-3 lg:w-4 lg:h-4" />
+                Admin
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-zinc-400 hidden sm:inline-block">{user.email}</span>
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={handleLogout}
-            className="p-2 text-zinc-400 hover:text-red-400 hover:bg-zinc-900 rounded-lg transition-colors"
+            className="p-2 text-zinc-500 hover:text-red-400 hover:bg-zinc-900 rounded-lg transition-colors"
             title="Sair"
           >
             <LogOut className="w-4 h-4" />
@@ -219,10 +296,12 @@ export default function App() {
 
       {activeTab === 'admin' ? (
         <AdminPanel />
+      ) : activeTab === 'links' ? (
+        <LinksPanel />
       ) : activeTab === 'generator' ? (
         <>
-          {/* Top Bar */}
-          <div className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center px-6 shrink-0 gap-4 overflow-x-auto no-scrollbar">
+          {/* Top Bar (Hidden on mobile to save space) */}
+          <div className="hidden lg:flex h-14 bg-zinc-900 border-b border-zinc-800 items-center px-6 shrink-0 gap-4 overflow-x-auto no-scrollbar">
             <span className="text-sm font-medium text-zinc-400 whitespace-nowrap">Selecionados:</span>
             {allSelectedItems.length === 0 ? (
               <span className="text-sm text-zinc-600 italic">Nenhum item selecionado</span>
@@ -249,32 +328,37 @@ export default function App() {
             </div>
           )}
 
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex flex-col lg:flex-row flex-1">
             <Sidebar 
               categories={categories}
               selectedCategory={selectedCategory} 
               onSelectCategory={setSelectedCategory} 
             />
-            <OptionsPanel 
-              categories={categories}
-              selectedCategoryId={selectedCategory}
-              selectedOptions={selectedOptions}
-              onToggleOption={handleToggleOption}
-              clothingDescription={clothingDescription}
-              onClothingDescriptionChange={setClothingDescription}
-            />
-            <PromptArea 
-              generatedPrompt={generatedPrompt}
-              isGenerating={isGenerating}
-              onGenerate={handleGenerate}
-              onCopy={handleCopy}
-              onPromptChange={setGeneratedPrompt}
-              onClearAll={handleClearAll}
-              copyTypography={copyTypography}
-              setCopyTypography={setCopyTypography}
-              typographyText={typographyText}
-              setTypographyText={setTypographyText}
-            />
+            <div className="flex flex-col md:flex-row flex-1">
+              <OptionsPanel 
+                categories={categories}
+                selectedCategoryId={selectedCategory}
+                selectedOptions={selectedOptions}
+                onToggleOption={handleToggleOption}
+                clothingDescription={clothingDescription}
+                onClothingDescriptionChange={setClothingDescription}
+              />
+              <PromptArea 
+                generatedPrompt={generatedPrompt}
+                isGenerating={isGenerating}
+                cooldown={cooldown}
+                onGenerate={handleGenerate}
+                onCopy={handleCopy}
+                onPromptChange={setGeneratedPrompt}
+                onClearAll={handleClearAll}
+                copyTypography={copyTypography}
+                setCopyTypography={setCopyTypography}
+                typographyText={typographyText}
+                setTypographyText={setTypographyText}
+                imageFile={imageFile}
+                setImageFile={setImageFile}
+              />
+            </div>
           </div>
         </>
       ) : (

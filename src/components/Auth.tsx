@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { auth, googleProvider, db } from '../firebase';
 import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react';
+import { LogIn, Mail, Lock, AlertCircle, Wand2 } from 'lucide-react';
+import logo from '../assets/logo.svg';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -75,7 +76,10 @@ export default function Auth() {
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 font-sans text-zinc-100">
       <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-xl">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-emerald-400 mb-2">Bem-vindo</h1>
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-zinc-950 rounded-2xl border border-zinc-800 mb-4 overflow-hidden shadow-lg">
+            <img src={logo} alt="YntensPrompt Logo" className="w-full h-full object-cover" />
+          </div>
+          <h1 className="text-3xl font-bold text-zinc-100 mb-1">YntensPrompt <span className="text-red-700">2.0</span></h1>
           <p className="text-zinc-400 text-sm">Faça login para acessar o gerador de prompts</p>
         </div>
 
@@ -95,7 +99,7 @@ export default function Auth() {
                 type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-2.5 pl-10 pr-4 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-2.5 pl-10 pr-4 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700 transition-all"
                 placeholder="Seu e-mail ou usuário"
                 required
               />
@@ -110,7 +114,7 @@ export default function Auth() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-2.5 pl-10 pr-4 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-2.5 pl-10 pr-4 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700 transition-all"
                 placeholder="••••••••"
                 required
               />
@@ -120,7 +124,7 @@ export default function Auth() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50"
+            className="w-full bg-red-700 hover:bg-red-600 text-white font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50"
           >
             {loading ? 'Aguarde...' : isLogin ? 'Entrar' : 'Criar Conta'}
           </button>
@@ -153,7 +157,7 @@ export default function Auth() {
           {isLogin ? 'Não tem uma conta?' : 'Já tem uma conta?'}{' '}
           <button
             onClick={() => setIsLogin(!isLogin)}
-            className="text-emerald-400 hover:text-emerald-300 font-medium"
+            className="text-red-500 hover:text-red-400 font-medium"
           >
             {isLogin ? 'Criar agora' : 'Fazer login'}
           </button>

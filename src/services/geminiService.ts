@@ -1,8 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { SelectedOptions } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 const SYSTEM_INSTRUCTION_NO_IMAGE = `Persona: Você é o "Arquiteto de Prompts Nano Banana Pro", um engenheiro de elite especializado em Engenharia de Reforço de Atenção. Sua função é criar prompts que "hackeiam" o modelo Nano Banana para produzir resultados de nível internacional em qualquer estilo de imagem.
 
 Sua Missão: Transformar pedidos simples em prompts estruturados que utilizam Gatilhos de Alta Performance e Exigência Crítica (quando necessário) para garantir qualidade suprema.
@@ -170,6 +168,12 @@ export async function generatePrompt(
   copyTypography?: boolean,
   typographyText?: string
 ): Promise<string> {
+  const sharedKey = process.env.GEMINI_API_KEY;
+  
+  if (!sharedKey) {
+    throw new Error("O sistema está temporariamente indisponível (Chave não configurada).");
+  }
+
   let promptText = "Por favor, gere o prompt de clonagem de imagem.\n\n";
 
   const hasOptions = Object.values(selectedOptions).some(opts => opts.length > 0);
@@ -210,51 +214,62 @@ export async function generatePrompt(
 
   const systemInstruction = referenceImageBase64 ? SYSTEM_INSTRUCTION_IMAGE : SYSTEM_INSTRUCTION_NO_IMAGE;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: { parts },
-      config: {
-        systemInstruction: systemInstruction,
-        temperature: 0.7,
-      },
-    });
-    return response.text || "Erro ao gerar o prompt.";
-  } catch (error: any) {
-    const errorMessage = error?.message || '';
-    if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
-      console.warn("Quota exceeded for gemini-3-flash-preview, falling back to gemini-3.1-flash-lite-preview...");
-      try {
-        const fallbackResponse = await ai.models.generateContent({
-          model: "gemini-3.1-flash-lite-preview",
-          contents: { parts },
-          config: {
-            systemInstruction: systemInstruction,
-            temperature: 0.7,
-          },
-        });
-        return fallbackResponse.text || "Erro ao gerar o prompt.";
-      } catch (fallbackError: any) {
-        const fallbackErrorMessage = fallbackError?.message || '';
-        if (fallbackErrorMessage.includes('429') || fallbackErrorMessage.includes('quota') || fallbackErrorMessage.includes('RESOURCE_EXHAUSTED')) {
-           console.warn("Quota exceeded for gemini-3.1-flash-lite-preview, falling back to gemini-2.5-flash...");
-           try {
-             const finalFallbackResponse = await ai.models.generateContent({
-               model: "gemini-2.5-flash",
-               contents: { parts },
-               config: {
-                 systemInstruction: systemInstruction,
-                 temperature: 0.7,
-               },
-             });
-             return finalFallbackResponse.text || "Erro ao gerar o prompt.";
-           } catch (finalError) {
-             throw new Error("O limite de uso gratuito foi atingido no momento. Por favor, aguarde alguns minutos e tente novamente.");
-           }
+  const modelsToTry = [
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-flash-latest",
+    "gemini-3.1-pro-preview"
+  ];
+
+  const ai = new GoogleGenAI({ apiKey: sharedKey });
+  
+  for (const modelName of modelsToTry) {
+    try {
+      // Try up to 4 times for each model with more aggressive backoff
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: { parts },
+            config: {
+              systemInstruction: systemInstruction,
+              temperature: 0.7,
+            },
+          });
+          
+          if (response.text) {
+            return response.text;
+          }
+        } catch (innerError: any) {
+          const errorMsg = innerError?.message || '';
+          const isQuotaError = errorMsg.includes('429') || 
+                               errorMsg.includes('quota') || 
+                               errorMsg.includes('RESOURCE_EXHAUSTED');
+          
+          if (isQuotaError && attempt < 3) {
+            // Exponential backoff: 10s, 20s, 40s
+            const waitTime = Math.pow(2, attempt + 1) * 5000;
+            await new Promise(resolve => setTimeout(resolve, waitTime + (Math.random() * 5000)));
+            continue;
+          }
+          throw innerError;
         }
-        throw new Error("O limite de uso gratuito foi atingido no momento. Por favor, aguarde alguns minutos e tente novamente.");
       }
+    } catch (error: any) {
+      const errorMsg = error?.message || '';
+      const isQuotaError = errorMsg.includes('429') || 
+                           errorMsg.includes('quota') || 
+                           errorMsg.includes('RESOURCE_EXHAUSTED');
+      
+      if (isQuotaError) {
+        console.warn(`Quota exceeded for ${modelName}, trying next...`);
+        // Wait 10 seconds before trying the next model
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        continue; // Try next model in the list
+      }
+      throw error; // If it's not a quota error, throw it immediately
     }
-    throw error;
   }
+
+  throw new Error("⚠️ Limite de Velocidade Atingido (Erro 429). O Google limita a frequência de uso na versão gratuita para todos os usuários deste sistema simultaneamente. Por favor, aguarde cerca de 60 segundos e tente novamente.");
 }

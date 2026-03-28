@@ -1,5 +1,5 @@
 {
   "name": "YntensPrompt 2.0",
   "description": "Gerador de prompts estruturados para clonagem de imagens com modelos de IA.",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["camera", "microphone", "geolocation"]
 }

@@ -14,6 +14,7 @@ export interface Category {
   label: string;
   subcategories: SubCategory[];
   order?: number;
+  icon?: string;
 }
 
 export interface Conflict {

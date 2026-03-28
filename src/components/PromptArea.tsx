@@ -1,9 +1,10 @@
 import React, { useRef, useState } from 'react';
-import { Upload, Copy, RefreshCw, Wand2, Image as ImageIcon, Trash2, Check, Type } from 'lucide-react';
+import { Upload, Copy, RefreshCw, Wand2, Image as ImageIcon, Trash2, Check, Type, Key, Clock } from 'lucide-react';
 
 interface PromptAreaProps {
   generatedPrompt: string;
   isGenerating: boolean;
+  cooldown?: number;
   onGenerate: (imageFile?: File) => void;
   onCopy: () => void;
   onPromptChange: (newPrompt: string) => void;
@@ -12,11 +13,14 @@ interface PromptAreaProps {
   setCopyTypography: (val: boolean) => void;
   typographyText: string;
   setTypographyText: (val: string) => void;
+  imageFile: File | null;
+  setImageFile: (file: File | null) => void;
 }
 
 export function PromptArea({
   generatedPrompt,
   isGenerating,
+  cooldown = 0,
   onGenerate,
   onCopy,
   onPromptChange,
@@ -25,20 +29,29 @@ export function PromptArea({
   setCopyTypography,
   typographyText,
   setTypographyText,
+  imageFile,
+  setImageFile,
 }: PromptAreaProps) {
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = (file: File) => {
-    setImageFile(file);
+  // Update preview when imageFile changes (e.g. from Clear All)
+  React.useEffect(() => {
+    if (!imageFile) {
+      setImagePreview(null);
+      return;
+    }
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagePreview(reader.result as string);
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(imageFile);
+  }, [imageFile]);
+
+  const handleFile = (file: File) => {
+    setImageFile(file);
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,7 +82,6 @@ export function PromptArea({
 
   const clearImage = () => {
     setImageFile(null);
-    setImagePreview(null);
     setCopyTypography(false);
     setTypographyText('');
     if (fileInputRef.current) {
@@ -89,15 +101,15 @@ export function PromptArea({
   };
 
   return (
-    <div className="w-96 bg-zinc-900 border-l border-zinc-800 h-full flex flex-col">
-      <div className="p-6 border-b border-zinc-800">
+    <div className="w-full lg:w-96 bg-zinc-900 border-t lg:border-t-0 lg:border-l border-zinc-800 h-full flex flex-col shrink-0">
+      <div className="p-4 lg:p-6 border-b border-zinc-800">
         <h2 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
-          <Wand2 className="w-5 h-5 text-emerald-400" />
+          <Wand2 className="w-5 h-5 text-red-500" />
           Gerador
         </h2>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+      <div className="flex-1 lg:overflow-y-auto p-4 lg:p-6 flex flex-col gap-6">
         {/* Image Upload Section */}
         <div className="bg-zinc-950 rounded-xl border border-zinc-800 p-4">
           <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
@@ -109,15 +121,15 @@ export function PromptArea({
             <div 
               className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
                 isDragging 
-                  ? 'border-emerald-500 bg-emerald-500/10' 
-                  : 'border-zinc-800 hover:border-emerald-500/50 hover:bg-zinc-900'
+                  ? 'border-red-700 bg-red-700/10' 
+                  : 'border-zinc-800 hover:border-red-700/50 hover:bg-zinc-900'
               }`}
               onClick={() => fileInputRef.current?.click()}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              <Upload className={`w-6 h-6 mx-auto mb-2 ${isDragging ? 'text-emerald-400' : 'text-zinc-500'}`} />
+              <Upload className={`w-6 h-6 mx-auto mb-2 ${isDragging ? 'text-red-500' : 'text-zinc-500'}`} />
               <p className="text-xs text-zinc-400">Clique ou arraste uma imagem aqui</p>
               <p className="text-[10px] text-zinc-500 mt-1">PNG, JPG, WEBP</p>
             </div>
@@ -146,7 +158,7 @@ export function PromptArea({
             <div className="mt-4 pt-4 border-t border-zinc-800">
               <div className="flex items-center justify-between mb-3">
                 <label className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-                  <Type className="w-4 h-4 text-emerald-400" />
+                  <Type className="w-4 h-4 text-red-500" />
                   Copiar Tipografia da Referência?
                 </label>
                 <div className="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800">
@@ -154,7 +166,7 @@ export function PromptArea({
                     onClick={() => setCopyTypography(true)}
                     className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
                       copyTypography 
-                        ? 'bg-emerald-500 text-zinc-950 shadow-sm' 
+                        ? 'bg-red-700 text-white shadow-sm' 
                         : 'text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
@@ -183,7 +195,7 @@ export function PromptArea({
                     value={typographyText}
                     onChange={(e) => setTypographyText(e.target.value)}
                     placeholder="Ex: YntensPrompt 2.0"
-                    className="w-full bg-zinc-900 border-2 border-emerald-500/50 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                    className="w-full bg-zinc-900 border-2 border-red-700/50 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all shadow-[0_0_15px_rgba(185,28,28,0.1)]"
                   />
                   <p className="text-[10px] text-zinc-500 mt-1.5">
                     O estilo da fonte, cores e efeitos 3D da imagem original serão aplicados a este texto.
@@ -197,13 +209,22 @@ export function PromptArea({
         {/* Generate Button */}
         <button
           onClick={() => onGenerate(imageFile || undefined)}
-          disabled={isGenerating}
-          className="w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold py-3 px-4 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-[0_0_30px_rgba(16,185,129,0.4)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          disabled={isGenerating || cooldown > 0}
+          className={`w-full font-semibold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95 ${
+            isGenerating || cooldown > 0
+              ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+              : 'bg-red-700 hover:bg-red-600 text-white shadow-[0_0_20px_rgba(185,28,28,0.2)] hover:shadow-[0_0_30px_rgba(185,28,28,0.4)]'
+          }`}
         >
           {isGenerating ? (
             <>
               <RefreshCw className="w-5 h-5 animate-spin" />
               Gerando Prompt...
+            </>
+          ) : cooldown > 0 ? (
+            <>
+              <Clock className="w-5 h-5" />
+              Aguarde {cooldown}s...
             </>
           ) : (
             <>
@@ -231,8 +252,8 @@ export function PromptArea({
                   onClick={handleCopyClick}
                   className={`text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all border ${
                     copied 
-                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
-                      : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20 hover:border-emerald-500/40'
+                      ? 'bg-red-700/20 text-red-500 border-red-700/30' 
+                      : 'bg-red-700/10 hover:bg-red-700/20 text-red-500 border-red-700/20 hover:border-red-700/40'
                   }`}
                 >
                   {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -245,7 +266,11 @@ export function PromptArea({
             value={generatedPrompt}
             onChange={(e) => onPromptChange(e.target.value)}
             placeholder="O prompt gerado aparecerá aqui..."
-            className="flex-1 w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-zinc-300 text-xs font-mono focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 resize-none"
+            className={`flex-1 w-full bg-zinc-950 border rounded-xl p-4 text-xs font-mono focus:outline-none focus:ring-1 resize-none ${
+              generatedPrompt.includes('429') 
+                ? 'border-red-500/50 text-red-400 focus:border-red-500/50 focus:ring-red-500/50' 
+                : 'border-zinc-800 text-zinc-300 focus:border-red-700/50 focus:ring-red-700/50'
+            }`}
           />
         </div>
       </div>

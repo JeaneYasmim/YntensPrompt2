@@ -82,12 +82,13 @@ service cloud.firestore {
     }
 
     function isValidGeneratedImage(data) {
-      return hasOnlyAllowedFields(['userId', 'prompt', 'imageUrl', 'aspectRatio', 'createdAt', 'catalogId']) &&
+      return hasOnlyAllowedFields(['userId', 'prompt', 'imageUrl', 'aspectRatio', 'createdAt', 'catalogId', 'model']) &&
              data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
              data.prompt is string && data.prompt.size() > 0 && data.prompt.size() < 5000 &&
              data.imageUrl is string && data.imageUrl.size() > 0 &&
              data.aspectRatio is string && data.aspectRatio.size() > 0 && data.aspectRatio.size() < 20 &&
              (!('catalogId' in data) || (data.catalogId is string && data.catalogId.size() < 100)) &&
+             (!('model' in data) || (data.model is string && data.model.size() < 50)) &&
              data.createdAt is timestamp;
     }
 

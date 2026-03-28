@@ -151,7 +151,7 @@ export default function AdminPanel() {
         <button
           onClick={() => setActiveTab('users')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeTab === 'users' ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-400 hover:bg-zinc-900'
+            activeTab === 'users' ? 'bg-red-700/10 text-red-500' : 'text-zinc-400 hover:bg-zinc-900'
           }`}
         >
           <Users className="w-4 h-4" />
@@ -160,7 +160,7 @@ export default function AdminPanel() {
         <button
           onClick={() => setActiveTab('categories')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeTab === 'categories' ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-400 hover:bg-zinc-900'
+            activeTab === 'categories' ? 'bg-red-700/10 text-red-500' : 'text-zinc-400 hover:bg-zinc-900'
           }`}
         >
           <LayoutList className="w-4 h-4" />
@@ -175,7 +175,7 @@ export default function AdminPanel() {
               <h2 className="text-xl font-bold text-zinc-100">Gerenciar Usuários</h2>
               <button
                 onClick={() => setIsCreatingUser(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold rounded-lg transition-colors text-sm"
+                className="flex items-center gap-2 px-4 py-2 bg-red-700 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors text-sm"
               >
                 <Plus className="w-4 h-4" />
                 Novo Usuário
@@ -185,7 +185,7 @@ export default function AdminPanel() {
             {isCreatingUser && (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-emerald-400">Adicionar Novo Usuário</h3>
+                  <h3 className="text-lg font-semibold text-red-500">Adicionar Novo Usuário</h3>
                   <button onClick={() => setIsCreatingUser(false)} className="text-zinc-400 hover:text-zinc-200">
                     <X className="w-5 h-5" />
                   </button>
@@ -222,7 +222,7 @@ export default function AdminPanel() {
                       <td className="px-4 py-3 text-zinc-300">{user.displayName || '-'}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          user.role === 'admin' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-zinc-800 text-zinc-400'
+                          user.role === 'admin' ? 'bg-red-700/10 text-red-500' : 'bg-zinc-800 text-zinc-400'
                         }`}>
                           {user.role}
                         </span>
@@ -230,7 +230,7 @@ export default function AdminPanel() {
                       <td className="px-4 py-3 flex justify-end gap-2">
                         <button
                           onClick={() => handleToggleRole(user.uid, user.role)}
-                          className="p-1.5 text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800 rounded-md transition-colors"
+                          className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-zinc-800 rounded-md transition-colors"
                           title="Alternar Permissão"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -257,7 +257,7 @@ export default function AdminPanel() {
               <h2 className="text-xl font-bold text-zinc-100">Gerenciar Categorias</h2>
               <button
                 onClick={handleCreateCategory}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold rounded-lg transition-colors text-sm"
+                className="flex items-center gap-2 px-4 py-2 bg-red-700 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors text-sm"
               >
                 <Plus className="w-4 h-4" />
                 Nova Categoria
@@ -267,7 +267,7 @@ export default function AdminPanel() {
             {editingCategory ? (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-6">
                 <div className="flex justify-between items-center border-b border-zinc-800 pb-4">
-                  <h3 className="text-lg font-semibold text-emerald-400">Editando Categoria</h3>
+                  <h3 className="text-lg font-semibold text-red-500">Editando Categoria</h3>
                   <button onClick={() => setEditingCategory(null)} className="text-zinc-400 hover:text-zinc-200">
                     <X className="w-5 h-5" />
                   </button>
@@ -279,7 +279,7 @@ export default function AdminPanel() {
                     type="text"
                     value={editingCategory.label}
                     onChange={e => setEditingCategory({...editingCategory, label: e.target.value})}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-100 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-100 focus:outline-none focus:border-red-700"
                   />
                 </div>
 
@@ -288,7 +288,7 @@ export default function AdminPanel() {
                     <label className="block text-sm text-zinc-400">Subcategorias ({editingCategory.subcategories.length})</label>
                     <button
                       onClick={handleAddSubcategory}
-                      className="text-xs flex items-center gap-1 text-emerald-400 hover:text-emerald-300"
+                      className="text-xs flex items-center gap-1 text-red-500 hover:text-red-400"
                     >
                       <Plus className="w-3 h-3" /> Adicionar Subcategoria
                     </button>
@@ -327,7 +327,7 @@ export default function AdminPanel() {
                                     type="text"
                                     value={opt.label}
                                     onChange={e => handleUpdateOption(subIdx, optIdx, 'label', e.target.value)}
-                                    className="w-full bg-transparent border-b border-zinc-800 pb-1 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500"
+                                    className="w-full bg-transparent border-b border-zinc-800 pb-1 text-sm text-zinc-200 focus:outline-none focus:border-red-700"
                                     placeholder="Nome da Opção"
                                   />
                                   <input
@@ -348,7 +348,7 @@ export default function AdminPanel() {
                             ))}
                             <button
                               onClick={() => handleAddOption(subIdx)}
-                              className="w-full py-2 border border-dashed border-zinc-700 rounded-lg text-xs text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-colors flex items-center justify-center gap-1"
+                              className="w-full py-2 border border-dashed border-zinc-700 rounded-lg text-xs text-zinc-400 hover:text-red-500 hover:border-red-700/50 transition-colors flex items-center justify-center gap-1"
                             >
                               <Plus className="w-3 h-3" /> Adicionar Opção
                             </button>
@@ -368,7 +368,7 @@ export default function AdminPanel() {
                   </button>
                   <button
                     onClick={handleSaveCategory}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-red-700 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors"
                   >
                     <Save className="w-4 h-4" />
                     Salvar Categoria
@@ -387,7 +387,7 @@ export default function AdminPanel() {
                       <div className="flex gap-1">
                         <button
                           onClick={() => setEditingCategory(cat)}
-                          className="p-1.5 text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800 rounded-md transition-colors"
+                          className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-zinc-800 rounded-md transition-colors"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
